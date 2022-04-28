@@ -1,262 +1,436 @@
-# Lab 4: Map Design and Tile Generation
+# Lab 3: Web Map Application
 
 **Instructor:** Bo Zhao, 206.685.3846 or zhaobo@uw.edu; **Points Available** = 50
 
-The earliest web maps were typically drawn on the fly by the server, no matter how many layers were available or requested. As you may have noticed, **the symbol sets and labeling choices for this type of map are relatively limited and complex to work with**. In fact, for many years, web cartographers had to build a map with minimal layer set and simple symbols to avoid hampering performance. In many cases, a cartographer was not even involved; instead, the web map was made by a server administrator tweaking SLD files that defined the layer order, symbol sizes, and so forth. This was the case with both open specification web services (like WMS) and proprietary web services (like Esri ArcIMS).
+In this lab, we will design a web map application. This application is a proportional symbol map of earthquakes near Japan in 2017. When creating a web map, one crucial work is to symbolize the map elements to provide proper message about the raw data. This increases legibility for users and can give your map an appealing, custom design. An thematic map can includes base maps, thematic layers (i.e., choropleth, proportional symbols, dot density, etc), and interactive features (the components of the map that allow for user interaction). To make this map, we have gathered earthquakes taking place near Japan in September 2017. The data are from USGS earthquake catalog. Below is the web map you will make after walking through this lab handout.
 
-In the mid-2000s, after Google Maps, Microsoft Virtual Earth (now Bing Maps), and other popular mapping applications hit the web, **people started to realize that maybe they didn't need the ability to tinker with the properties of every single layer**. These providers had started fusing their vector layers together in a single rasterized image that was divided into 256 x 256 pixel images, or tiles. These tiles were pregenerated and stored on disk for rapid distribution to clients. This was done out of necessity to support hundreds or thousands of simultaneous users, a burden too great for drawing the maps on the fly.
+![](img/map-final.png)
 
-The figure below shows how a tiled map consists of a "pyramid" of images covering the extent of the map across various scales. Tiled maps typically come with a level, row, and column numbering scheme that can be shared across caches to make sure that tile boundaries match up if you are overlaying two tile sets.
+To get started, please synchronize the course material to the working space of your local computer. The material for this lab is located at `[your_working_space]/geog458/labs/lab03`. Next, open the course material in VS Code.
 
-![ Tile Pyramid](img/tile_pyramid.png)
+## 1. Display the map and load geospatial data
 
-> Tiled web maps take the form of a pyramid where the map is drawn at a progressive series of scale levels, with the smallest (zoomed out) scales using fewer tiles.
+In your IDE (VS Code, or any other alternatives you are familiar), open `map1.html` to prepare for editing.
 
-Cartographers loved the tiled maps, because now they could invest all the tools of their trade into making an aesthetically pleasing web map without worrying about performance. Once you had created the tiles, you just had a set of images sitting on disk, and the server could retrieve a beautiful image just as fast as it could retrieve an ugly one. And because the tiled map images could be distributed so quickly by a web server, Google and others were able to retrieve the tiles with no page blink as people panned.
+In this file, you will see the structure of a basic HTML page.
 
-Within a year or two of Google Maps' release, commercial GIS software began offering the ability to build map tiles. For many, ArcGIS Server was desirable because the map could be authored using the mature map authoring tools in ArcMap; however, cost was a concern for some. [Arc2Earth](https://www.arc2earth.com/) was another commercial alternative. The free and open source [Mapnik](http://mapnik.org/) library could also build tiles, but it wasn't until recent years that projects like [TileMill](https://tilemill-project.github.io/tilemill/) wrapped a user-friendly GUI around Mapnik.
+Inside the `head` tag, we include both the latest version of `mapbox-gl-js.css` and `mapbox-gl-js.js`. After the `mapbox-gl-js.css` we add a `style` tag in order to include our customized CSS styling codes.
 
-![ Tiles from OpenStreetMap data, rendered by MapQuest](img/tiled_map.jpg)
+Inside the `body` tag, we put a `map` div tag for holding the map object. After that map `div` tag, we include a `script` tag to put the javascript codes.
 
-> Credit: Tiles from OpenStreetMap data, rendered by MapQuest
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Earthquakes in Japan</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.8.1/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.8.1/mapbox-gl.js"></script>
+    <style>
+    </style>
+</head>
 
-Tiled maps were the only model that could reasonably work for serving complex web maps to thousands of simultaneous users. However, they eliminated the ability for users to change layer order or symbols. People started working around this by serving out their general-purpose basemap layers as tiles and then overlaying a separate layer with thematic information. The general-purpose basemap tiles could be re-used in many applications. The thematic layers could also be tiled if the data did not change too quickly or cover too broad an area at large scales. For example, if you examine Google Maps with a developer tool, you will see that the basemap and the thematic layers (such as Panoramio photographs) are both retrieved as tiles.
+<body>
+    <div id="map"></div>
+    <script>
+    </script>
 
-![ Photos appearing as tiles in Google Maps](img/google_photo_tiles.png)
+</body>
 
-> The thematic layer of Panoramio photos is brought into Google Maps as predrawn tiles. This is evident when viewing the layer in Firebug.
-
-## 2. Bing Tile System
-
-The tile system of Microsoft Bing map is one of the earliest map tile system. To illustrate how the tile system work, I will focus on the Bing Tile system in this section. Bing Maps provides a world map that users can directly manipulate to pan and zoom. To make this interaction as fast and responsive as possible, Bing chose to pre-render the map at many different levels of detail, and to cut each map into tiles for quick retrieval and display. This section describes the projection, coordinate systems, and addressing scheme of the map tiles, which collectively are called the Bing Maps Tile System.
-
-### 2.1 Map Projection
-
-To make the map seamless, and to ensure that aerial images from different sources line up properly, we have to use a single projection for the entire world. We chose to use the **Mercator projection**, which looks like this:
-
-![img](img/bing_overview.png)
-
-Although the Mercator projection significantly distorts scale and area (particularly near the poles), it has two important properties that outweigh the scale distortion:
-
-1.  It’s a **conformal** projection, which means that it preserves the shape of relatively small objects. **This is especially important when showing aerial imagery**, because we want to avoid distorting the shape of buildings. Square buildings should appear square, not rectangular.
-2.  It’s a **cylindrical** projection, which means that **north and south** are always straight up and down, and west and east are always straight left and right.
-
-Since the Mercator projection goes to infinity at the poles, it doesn’t actually show the entire world. Using a square aspect ratio for the map, the maximum latitude shown is approximately 85.05 degrees.
-
-To simplify the calculations, we use the spherical form of this projection, not the ellipsoidal form. Since the projection is used only for map display, and not for displaying numeric coordinates, we don’t need the extra precision of an ellipsoidal projection. The spherical projection causes approximately 0.33% scale distortion in the Y direction, which is not visually noticeable.
-
-### 2.2 Ground resolution and map scale
-
-In addition to the projection, the ground resolution or map scale must be specified in order to render a map. At the lowest level of detail `Level 1`, the map is 512 x 512 pixels. At each successive level of detail, the map width and height grow by a factor of 2: Level 2 is 1024 x 1024 pixels, Level 3 is 2048 x 2048 pixels, Level 4 is 4096 x 4096 pixels, and so on. In general, the width and height of the map (in pixels) can be calculated as:
-
-$$
-map width = map height = 256 * 2^m pixels
-$$
-
-The **ground resolution** indicates the distance on the ground that’s represented by a single pixel in the map. For example, at a ground resolution of 10 meters/pixel, each pixel represents a ground distance of 10 meters. The ground resolution varies depending on the level of detail and the latitude at which it’s measured. Using an earth radius of 6,378,137 meters, the ground resolution (in meters per pixel) can be calculated as:
-
-$$
-ground resolution = cos(latitude * pi/180) * earth circumference / map width = (cos(latitude * pi/180) * 2 * pi * 6378137 meters) / (256 * 2^m pixels)
-$$
-
-The **map scale** indicates the ratio between map distance and ground distance, when measured in the same units. For instance, at a map scale of 1 : 100,000, each inch on the map represents a ground distance of 100,000 inches. Like the ground resolution, the map scale varies with the level of detail and the latitude of measurement. It can be calculated from the ground resolution as follows, given the screen resolution in dots per inch, **typically 96 dpi**:
-
-$$
-map scale = 1 : ground resolution * screen dpi / 0.0254 meters/inch  = 1 : (cos(latitude * pi/180) * 2 * pi * 6378137 * screen dpi) / (256 * 2^m * 0.0254)
-$$
-
-
-
-This table shows each of these values at each level of detail, **as measured at the Equator**. (Note that the ground resolution and map scale also vary with the latitude, as shown in the equations above, but not shown in the table below.)
-
-| **Level of Detail** | **Map Width and Height (pixels)** | **Ground Resolution (meters / pixel)** | **Map Scale(at 96 dpi)** |
-| ------------------: | --------------------------------: | -------------------------------------: | :----------------------- |
-|                   1 |                               512 |                            78,271.5170 | 1 : 295,829,355.45       |
-|                   2 |                             1,024 |                            39,135.7585 | 1 : 147,914,677.73       |
-|                   3 |                             2,048 |                            19,567.8792 | 1 : 73,957,338.86        |
-|                   4 |                             4,096 |                             9,783.9396 | 1 : 36,978,669.43        |
-|                   5 |                             8,192 |                             4,891.9698 | 1 : 18,489,334.72        |
-|                   6 |                            16,384 |                             2,445.9849 | 1 : 9,244,667.36         |
-|                   7 |                            32,768 |                             1,222.9925 | 1 : 4,622,333.68         |
-|                   8 |                            65,536 |                               611.4962 | 1 : 2,311,166.84         |
-|                   9 |                           131,072 |                               305.7481 | 1 : 1,155,583.42         |
-|                  10 |                           262,144 |                               152.8741 | 1 : 577,791.71           |
-|                  11 |                           524,288 |                                76.4370 | 1 : 288,895.85           |
-|                  12 |                         1,048,576 |                                38.2185 | 1 : 144,447.93           |
-|                  13 |                         2,097,152 |                                19.1093 | 1 : 72,223.96            |
-|                  14 |                         4,194,304 |                                 9.5546 | 1 : 36,111.98            |
-|                  15 |                         8,388,608 |                                 4.7773 | 1 : 18,055.99            |
-|                  16 |                        16,777,216 |                                 2.3887 | 1 : 9,028.00             |
-|                  17 |                        33,554,432 |                                 1.1943 | 1 : 4,514.00             |
-|                  18 |                        67,108,864 |                                 0.5972 | 1 : 2,257.00             |
-|                  19 |                       134,217,728 |                                 0.2986 | 1 : 1,128.50             |
-|                  20 |                       268,435,456 |                                 0.1493 | 1 : 564.25               |
-|                  21 |                       536,870,912 |                                 0.0746 | 1 : 282.12               |
-|                  22 |                     1,073,741,824 |                                 0.0373 | 1 : 141.06               |
-|                  23 |                     2,147,483,648 |                                 0.0187 | 1 : 70.53                |
-
-
-## 3 Generating Tiles in QGIS
-
-In this section we will introduce how to create map layer or load online map service, and then convert the created or loaded map layer as a tileset in QGIS 3. To do this, you need to install two QGIS plugins, including QMetaTiles and QuickMapServices.
-
-To enable the QuickMapServices Plugin, you need to click on the `Web` tab on the main menu bar, and then navigate to QuickMapServies and select Settings and then the tab for More Services. Then click **'Get Contibuted Pack'**. Click 'OK' for the pop-up window and then click 'Save.' If the service is successfully installed, you can open a variety of base maps.
-
-![](img/quickmapservicesetting.png)
-
-### 3.1 Generate or Load a Map Layer
-
-You can either create a map from your own data source, or load a base map from the QuickMapServices, or read a map tiles from MapBox. What's more, you can even make a layer group that is made up by several different layers.
-
-Once you have the map layer or layer group ready, please change the displaying projection to **Pseudo Mercator**, the epsg code is 3857. It is because most web maps are projected in the Pseudo Mercator. If you want to overlay any tiles with other external map services, you need to make sure all the displaying map layers are in the same projection.
-
-![](img/projection.png)
-
-### 3.2 Tile Server
-
-It is pretty straightforward and simple to creating new map layers from raw geospatial data (e.g., shapefiles or geojson) or loading external map layers from QuickMapServices are straightforward, here I would like to talk about how to read map layers from Mapbox's Tile Services.
-
-![](img/wmts.png)
-
-Please first go over this week's lecture notes if you need a guide to make your own MapBox maplayer. After creating your own map, open the browser panel in QGIS. Scroll Down to the **'WMS/WMTS'**, right click, and click **'New Connection'**. A pop-up window should appear.
-
-![](img/new-connection.png)
-
-Here, you can make a new connection to basemaps by providing the URL. In order to obtain the URL to your mapbox basemap, click `share` located next to your map on MapBox Studio:
-
-![](img/mapbox_url.png)
-
-Make sure you pick Third party option and copy the Integration URL of `WMTS` like the example above. After establishing the connection, you should be able to add your basemap by double-clicking the newly created connection.
-
-Zoom into your tiles so that they fill most of the canvas space. The canvas is the extent we will use to generate QMetaTiles.
-
-### 3.3 Generating Tiles by QMetaTiles (or QTiles)
-
-Click the Plugins drop down, hover over QMetaTiles to open the menu and select it. The QMetaTiles screen pops up. **For some version of QGIS, there is no plugin named QMetaTiles, Instead, you can use QTiles.** Name the directory where you want to save your tiles and provide a name for the Tileset. Select Canvas Extent and Zoom levels. In the Parameters make the **'Background transparency'** clear by changing the value to zero and make sure to select **'Write Leaflet-based viewer'**. Click Ok.
-
-![QMetaTiles](img/qmetatiles_to_leaflet.png)
-
-> Note: the runtime is dependent on the size and number of zoom levels. Please do not select the `use TMS tile convertion` option.
-
-The file directory will contain your QMetaTiles and an HTML document that can be integrated with leaflet. Additional help with QMetaTiles can be found **[here](http://felix.rohrba.ch/en/2017/easily-add-tilemap-layers-qgis/)**.
-
-### 3.4 Navigate to QMetaTiles folder
-
-Navigate to the output file after QMetaTiles finishes running. In this folder will be your sub folders of tiles arranged by zoom level and an html document.
-
-Open the html and look at the source code. The L.tileLayer object is in charge of loading the layer of map tiles.
-
-```javascript
-map.addSource('sample-tiles', {
-    'type': 'raster',
-    'tiles': [
-        'http://{s}.somedomain.com/{foo}/{z}/{x}/{y}.png'
-    ],
-    'tileSize': 256,
-    'attribution': 'Map tiles designed by Bo Zhao</a>'
-});
-
-map.addLayer({
-    'id': 'sample-layer',
-    'type': 'raster',
-    'layout': {
-        'visibility': 'none'
-    },
-    'source': 'sample-tiles'
-});
+</html>
 ```
 
-In the code above, `{s}` means one of the available subdomains (used sequentially to help with browser parallel requests per domain limitation; subdomain values are specified in options; a, b or c by default, can be omitted), `{z}` — zoom level, `{x}` and `{y}` — tile coordinates. `{r}` can be used to add "@2x" to the URL to load retina tiles.
+**The Script**
 
+Inside the `script` tag,  we create a `map` as a variable to hold the mapboxgl map object. The first parameter `container` will anchor to the map element placeholder in the body element.
 
-## 4 Add map tiles to a MapBox Map
-
-For web mapping and geovisualization applications, the QMetaTiles folder generated above in QGIS should become your assets folder on github. **In the code you will need to adjust absolute pathnames to relative path names.**
+In the style parameter, we can also add a basemap style. Mapbox dark style (mapbox://styles/mapbox/dark-v10) is selected.
 
 ```js
+mapboxgl.accessToken =
+    'pk.eyJ1IjoiamFrb2J6aGFvIiwiYSI6ImNpcms2YWsyMzAwMmtmbG5icTFxZ3ZkdncifQ.P9MBej1xacybKcDN_jehvw';
+let map = new mapboxgl.Map({
+    container: 'map', // container ID
+    style: 'mapbox://styles/mapbox/streets-v11', // style URL
+    center: [-74.5, 40], // starting position [lng, lat]
+    zoom: 4 // starting zoom
+});
+```
 
-map.on('load', () => { //simplifying the function statement: arrow with brackets to define a function
+**Make the map full screen**
 
-  map.addSource('sample-tiles', {
-      'type': 'raster',
-      'tiles': [
-          'http://{s}.somedomain.com/{foo}/{z}/{x}/{y}.png'
-      ],
-      'tileSize': 256,
-      'attribution': 'Map tiles designed by Bo Zhao</a>'
-  });
+To expand the map to the full screen, we set no margin and padding of the body element, and the map element will anchor to both the top and bottom. The width of the map will occupy the whole screen.
 
-  map.addLayer({
-      'id': 'sample-layer',
-      'type': 'raster',
-      'layout': {
-          'visibility': 'none'
-      },
-      'source': 'sample-tiles'
-  });
+```css
+body {
+    margin: 0;
+    padding: 0;
+}
 
+#map {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+}
+```
+
+If you are using VS code, please turn on the live server, map1 will be shown on your browser. If your VS code follows the default setting, the URL address of map1.html should be `http://127.0.0.1:5500/labs/lab03/map1.html`.
+
+![](img/map1.png)
+
+The dark color base map will enable the thematic layer stand out. If you want to change the base map, please refer to [map style collection](https://www.mapbox.com/gallery/).
+
+## 2. Asynchronous geospatial data loading
+
+Next, we want to add the earthquake data set to the map. In the directory `assets`, you will find a geojson file - `earthquakes.geojson`. Enter the following code snippet to add it to the map.
+
+```javascript
+map.on('load', () => {
+    map.addSource('earthquakes', {
+        type: 'geojson',
+        data: 'assets/earthquakes.geojson'
+    });
+
+    map.addLayer({
+        'id': 'earthquakes-layer',
+        'type': 'circle',
+        'source': 'earthquakes'
+    });
 
 });
+```
+
+The operator `=>` is a convenient way to define a function. It could also be expanded to
+
+```javascript
+map.on('load', function loadingdata() {
+    ... ...
+    ... ...
+});
+```
+The map object will create a new data source `earthquakes`, and it then imports to the new `earthquakes-layer`. The default style of each earthquake is a black dot. But it will be refreshed into new styles after applying the proportional symbol strategies. You can open `map2.html` to see how the map looks like at this stage.
+
+![](img/map2.png)
+
+## 3. Proportional symbol visualization
+
+A proportional symbol map allows the symbol for each geographical feature is proportional to a specific feature value. In this map, the radius of the dot is proportional to the magnitude of the earthquake the dot illustrates. Also, the color of each dot will also become darker when the magnitude increases.
+
+To do so, we need to define the grades of all magnitudes, the corresponding colors and radii, and then use the sequence number of the three arrays to check the corresponding value among the grades, colors and radii. For example, when magnitudes equals to 4, which is grades[1], we can use the same sequence number i, in this case, i = 1, to look for the assigned color, colors[1] equal to 'rgb(208,209,230)' and the radius of the proportional symbol, which is radii[i] equal to 5.
+
+```javascript
+const grades = [4, 5, 6], 
+      colors = ['rgb(208,209,230)', 'rgb(103,169,207)', 'rgb(1,108,89)'], 
+      radii = [5, 15, 20];
+```
+
+Then, I will apply these grades, colors and radii to symbolize each dot. When determining the `circle-radius`, a zoom level is required for each of the relationship between value and radius. This feature allows a user to define multiple associations between value and radius on different zoom. In this lab, we only need to keep the relationship between value and the radius constantly. So, please put a default zoom level of the map.
+
+Similarly, we assign corresponding color to each grade. Since other value of the circle would not be changed, so we just assign a consistent value for the stroke and opacity.
+
+
+```javascript
+'paint': {
+    // increase the radius of the circle as the zoom level and dbh value increases
+    'circle-radius': {
+        'property': 'mag',
+        'stops': [
+            [{
+                zoom: 5,
+                value: grades[0]
+            }, radius[0]],
+            [{
+                zoom: 5,
+                value: grades[1]
+            }, radius[1]],
+            [{
+                zoom: 5,
+                value: grades[2]
+            }, radius[2]]
+        ]
+    },
+    'circle-color': {
+        'property': 'mag',
+        'stops': [
+            [grades[0], colors[0]],
+            [grades[1], colors[1]],
+            [grades[2], colors[2]]
+        ]
+    },
+    'circle-stroke-color': 'white',
+    'circle-stroke-width': 1,
+    'circle-opacity': 0.6
+}
+```
+
+When determining the colors, you need some predefined color ramp to symbolize geographic features. [ColorBrewer](http://colorbrewer2.org/) is an online tool designed to help people select good color schemes for maps and other graphics. It provides three types of palettes: sequential, diverging, and qualitative.
+
+-   Sequential palettes are suited to ordered data that progress from low to high.
+-   Diverging palettes are suited to centered data with extremes in either direction.
+-   Qualitative palettes are suited to nominal or categorical data.
+
+![](img/colorbrewer.jpg)
+
+
+After symbolizing the dots, we will make each dot interactive. Once clicking on the dot, the magnitude information will appear.
+
+```javascript
+// click on tree to view magnitude in a popup
+map.on('click', 'earthquakes-point', (event) => {
+    new mapboxgl.Popup()
+        .setLngLat(event.features[0].geometry.coordinates)
+        .setHTML(`<strong>Magnitude:</strong> ${event.features[0].properties.mag}`)
+        .addTo(map);
+});
+```
+
+Then, please open `map3.html` to see how the map looks like at this stage.
+
+![](img/map3.png)
+## 4. Add a Legend
+
+Adding a legend requires quite a bit of code. The workflow to create a legend involves creating a place holder in the html, coding a legend object in order to add components, and styling the HTML with CSS. I am going to throw a bit more code at you this time, and we will walk through what it is doing. Enter the following block of code to your `script`.
+
+**Creat a place hoder in the html**
+
+First, we will create a place holder for the legend right after the map element.
+
+```html
+<div id="legend"></div>
+```
+
+**Coding the legend object**
+
+```js
+// create legend object, it will anchor to the div element with the id legend.
+const legend = document.getElementById('legend');
+
+//set up legend grades and labels
+var labels = ['<strong>Size</strong>'], vbreak;
+//iterate through grades and create a scaled circle and label for each
+for (var i = 0; i < grades.length; i++) {
+    vbreak = grades[i];
+    // you need to manually adjust the radius of each dot on the legend 
+    // in order to make sure the legend can be properly referred to the dot on the map.
+    dot_radius = 2 * radius[i];
+    labels.push(
+        '<p class="break"><i class="dot" style="background:' + colors[i] + '; width: ' + dot_radius +
+        'px; height: ' +
+        dot_radius + 'px; "></i> <span class="dot-label" style="top: ' + dot_radius / 2 + 'px;">' + vbreak +
+        '</span></p>');
+
+}
+
+const source =
+    '<p style="text-align: right; font-size:10pt">Source: <a href="https://earthquake.usgs.gov/earthquakes/">USGS</a></p>';
+
+// combine all the html codes.
+legend.innerHTML = labels.join('') + source;
+
 
 ```
 
-![mapbox map](img/final-map.png)
+**Style with CSS**
 
-As shown by the code, the tiles are loaded from a relative path `assets/tiles` which exists at a location in your internal network. Here is what the final output looks like **[here](http://jakobzhao.github.io/geog458/labs/lab04/index.html)**.
+If we save and refresh, the items you see will not make much sense. We need to use CSS to give them placement and organization on the page. The following CSS code will style our elements. Enter it between the style tags in the head of your HTML document. Like above, we will then walk through what it does.
 
-## 5 Deliverable
+```css
 
-- You are expected to generate **four** tile sets of any geographic phenomena you are interested in. **Since github repository only allows you upload a limited amount of data, so please make sure not to generate too many tiles by limiting the boundingbox or the scale range.** This lab is an opportunity to make a basemap or thematic map layers for your final project. Below are the lab requirement.
+/* the layout of the legend panel */
+#legend {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 110px;
+    background: #fff;
+    margin-right: 20px;
+    margin-bottom: 40px;
+    padding: 10px 20px 10px 10px;
+    border-radius: 3px;
+    text-align: center;
+}
 
-  - The first tile set should be a base map provided by MapBox. **Please make sure it is a basemap rather than a thematic map.** In most web map applications, Basemap is overlain with other thematic map layers and/or interactive features. Its primary function is to illustrate the geographical context of the study area. Therefore, a basemap is usually made in a monochrome color scheme. You are encouraged to make your basemap directly out of the existing map layers provided by MapBox (like those monochrome map layers provided on MapBox Studio). However, please make sure to change at least a few color uses, icons, and the label font. Overall, even you made a few changes, the base map should still look visually appealing. (5 POINTS).
+/* each line for a break */
+.break {
+    position: relative;
+    margin: 0px;
+    padding: 0px;
+}
 
-  - The second tile set should be a thematic layer made by your own geospatial dataset. (5 POINTS).
+/* basic style for a dot/circle */
+.dot {
+    display: inline-block;
+    margin-top: 5px;
+    border-radius: 50%;
+    opacity: 0.6;
+}
 
-  - The third tile set should be a layer group that is composed of a thematic layer (from the second tile set) and a basemap from the first tile set, as the map tiles shown in Section 4. (5 POINTS).
+/* the label for the dot */
+.dot-label {
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-style: italic;
+}
 
-  - The fourth tile set should be a map layer designed over Mapbox. It should embody a map theme relevant to your research interests, which could be Black History month, LGBTQ+ Pride, UW, Nature/Environment, etc. Please try to use the color, icon, and label to realize the theme.  (5 POINTS).
+/* the text color of a hyper link */
+a {
+    color: black
+}
+```
 
--  After the map tiles are generated, you are expected to create an index.html to visualize the four tile map sets.
-    -  create any necessary web page elements, such as page/map title, scale bar, attribution, zoom control, map description, etc. (5 POINTS)
-    -  The map should be shown in the full screen. (5 POINTS).
-    -  A layer switcher should be added to allow users to turn on and off each map layers. For more about the map switch control, please refer to the document at [here](https://leafletjs.com/examples/layers-control/). (6 POINTS).
+We set properties for the legend using `#legend` to style the legend element. Next, we set the basic style for each symbol that includes both the symbol `dot` and the label `dot-label`. To make the color consistent, we recolor the text of any hyperlink `a` as black. Save and refresh your map. You should see your styled legend applied to your map.
 
--  Upload everything to a github repository. In the `readme.md` file of this repository, please briefly introduce
 
-    -  screenshots of the four layers (2 POINTS)
-    -  the examined geographic area, and (2 POINTS)
-    -  the available zoom levels of each tile set (2 POINTS), and
-    -  brief descriptions of each tile sets (3 POINTS).
+It is worth noting that, creating a legend for a proportional symbol can be labor-intensive. If you look at the line `dot_radius = 2 * radius[i]`, you may wonder how I determine the dot radius on the legend would be twice as large as the dot radius on the map. Frankly speaking, I manually tested different options by times the radius with different constant value, in the end, I found out a constant number `2` would suffice. I have not found an efficient way to automate the process of determining an appropriate dot radius for the legend.
 
-- make sure the repository accessible through the url `https://[your_github_username].github.io/[your_repository_name]`. Also, please provide the url to your webmap in the `readme.md` file. (5 POINTS).
+Based on my experience, an easier way starts from determining which magnitude level breaks you plan to put on the legend. Once the specific breaks have been determined, you can compare the legend dot to the map dot of the same value. For example, I first picked magnitude 6, and then multiple it by 1/3, 1/2, 3, 2. Comparing the legend dot with an dot illustrating an earthquake with Magnitude 6, finally, I found 2 would be the best number to make the two dots in equal size.  
 
-The structure of this repository should look like:
+
+Then, please open `map4.html` to see how the map looks like at this stage.
+
+![](img/map4.png)
+
+### 5 Change the fonts
+
+Choosing fonts is an essential part of cartography, and an often overlooked one. Right now, our map uses the default Browser font, usually Times New Roman. To edit fonts, we want to style CSS. In CSS, there are many options for fonts; for more reading, check out the [w3schools font documentation](http://www.w3schools.com/css/css_font.asp).
+
+Traditionally, the font is loaded into your page only if you have it on your computer. This presents a problem though, if someone does not have the font, it will change the page to use secondary or default fonts. In order to ensure that every visitor's computer displays the same, you can link to online font libraries. A standard, useful online font library is Google Fonts. Google fonts can be added to any site, and since you link to the style, you do not have to worry about the user not having the font installed on their computer. Check out the Google Font library and explore their options. Let us link a standard web font called `Open Sans` to our document so we can use it. To link it to our document, enter the following line of code into the head section of your document. It should go right after your stylesheets.
+
+```html
+<head>...
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
+...</head>
+```
+
+Next, to style all text in our document with the `Open Sans` font, modify the `#legend` tag in the CSS (the code between the style tags). Modify the body CSS properties to look like the following, adding a font-family property after margin.
+
+```css
+#legend {
+    ...
+    font-family: 'Open Sans', sans-serif;
+    ...
+}
+```
+
+Save and refresh your map. Or open `map5.html`.  `Open Sans` will now be your preferred font for legend panel!
+
+![](img/map5.png)
+
+
+### 6. supplementary components
+
+To the end, I will add a map title "Earthquakes near Japan (September, 2017)," to the top left of this map. Also, I save the javascript code to the js folder as `main.js`, the css to the css folder as `style.css`. And then link them in the html `index.html` in the header.  Below is the code snippet.
+
+**add a place holder**
+
+```html
+<div id="title">
+    Earthquakes in Japan
+</div>
+<div id="subtitle">
+    September 2017
+</div>
+```
+
+**style the titles***
+
+```css
+
+#title {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin-top: 20px;
+    margin-left: 20px;
+    font-family: 'Open Sans', sans-serif;
+    font-size: 25pt;
+    color: white
+}
+
+
+#subtitle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin-top: 70px;
+    margin-left: 190px;
+    font-family: 'Open Sans', sans-serif;
+    font-size: 15pt;
+    color: white
+}
+```
+
+**add external links**
+
+```html
+<head>
+    ... ...
+    <link rel="stylesheet" href="css/style.css"/>
+</head>
+
+<body>
+    ... ...
+    <script src="js/main.js"></script>
+</body>
+```
+
+Then, please open `index.html` to see how the map looks like at this stage. Congratulatons!
+
+## 6. Deliverable
+
+After you successfully deploy this earthquake map, you are expected to build another thematic map of COVID-19 cases and rates in the United States.
+
+Whenever we are working with data, it’s very important that we understand the nature of the data and the intellectual context within which it operates. In the `assets` directory of this lab, you will see a zipped file named after `us-covid-2020.zip`. After you unzipped it, you will find two set of shapefiles files: us-covid-2020-rates and us-covid-2020-counts. The COVID-19 case/death data you will be using are originally from [The New York Times](https://github.com/nytimes/covid-19-data/blob/43d32dde2f87bd4dafbb7d23f5d9e878124018b8/live/us-counties.csv). The data include all the cases in 2020. The population data used for calculating the case rates are from the [2018 ACS 5 year estimates](https://data.census.gov/cedsci/table?g=0100000US.050000&d=ACS%205-Year%20Estimates%20Data%20Profiles&tid=ACSDP5Y2018.DP05&hidePreview=true). Both data are at the county level. The U.S. county boundary shapefile was downloaded from [the U.S. Census Bureau](https://www.census.gov/geographies/mapping-files/time-series/geo/carto-boundary-file.html). The data have been processed by us in order to suit the purpose of this lab. The case rate is calculated as cases per thousand residents. When you go further into GIS, you will find that, for most of the time, you will need to process the data by yourself before actually mapping it.
+
+For your lab deliverable, you need to create a github repository to host two thematic maps, one is a choropleth map of the covid-19 rates and the other is a proportional symbols map of covid-19 cases. If you have taken the course "Web and Mobile GIS", you must be very familiar with choropleth map making, but if you are not familiar with it, you can walk through this [step-by-step lab tutorial](https://github.com/jakobzhao/geog495/tree/main/labs/lab04) before making the choropleth map. The choropleth map should be compiled in the `map1.html` page, while the proportional symbols map should be in `map2.html`.  You are expected to submit the url of the GitHub repository to the Canvas Dropbox of this course. This url should be in the format of `https://www.github.com/[your_github_username]/[your_repository_name]`. Please make sure the name of your repository is **NOT** `lab03` or similar, use a name that can describe the theme of the map you will make.
+
+We expect the followings for your deliverable:
+
+- the shapefiles have been properly converted to geojson data. We expect the geojson has the right projection, the unused attributes has been deleted, the geometric shapes has been simplified (e.g., using [mapshaper](https://mapshaper.org/)(You will download a geojson type file but with a deceiving suffix '.json'. Don't worry. It will work fine!)). **(4 points)**
+
+- for each map:
+  -   use appropriate zoom level, map center, please apply "Albers" projection for this map. **(2 points per map)**
+  
+  -   an appropriate basemap for each map;  **(1 points per map)**
+
+  -   a fully-functioning thematic layer for each map;  **(4 points for map)**
+
+  -   a legend for each map;  **(4 points for map)**
+
+  -   some interactive elements, like a clickable dot; **(3 points for map)**
+
+  -   supplementary information, like the map title, map description, users, the data sources; **(2 points per map)**
+
+-   write up a project description in the `readme.md` file. This file will introduce the project name, a brief introduction, links to the map, screenshots, the primary functions(especially the function which was not covered in the lectures), libraries in use, data sources, credit, acknowledgment, and other necessary information. **(6 points)**
+
+-   synchronize this project to a GitHub repository. Make sure both maps can be properly visualized using the url `https://[your_github_username].github.io/[your_repository_name]/map1.html` or `map2.html`. (To do that, you may want to check out a previous lecture or lab handouts on how to host a repository on GitHub pages.); **(4 points)**
+
+
+
+-   please make sure the internal structure of the files in your project repository is well organized. For example, it may be similar to the file structure below. **(4 points)**
 
 ```powershell
 [your_repository_name]
+    │map1.html
+    │map2.html
     │readme.md
-    │index.html
-    ├─tiles
-    │      [tile sets 1]
-    │         XXX
-    │         XXX
-    │      [tile sets 2]
-    │         XXX
-    │         XXX
-    │      [tile sets 3]
-    │         XXX
-    │         XXX
-    │      [tile sets 4]
-    │         XXX
-    │         XXX
+    ├─assets
+    │      us-covid-2020-counts.geojson
+    │      us-covid-2020-rates.geojson
+    ├─css
+    │      style.css
+    ├─img
+    │      xxx.jpg
+    └─js
+            main.js
 ```
+- Finally, submit your repository URL under `Lab 3` on Canvas.
 
-## Extended Readings
 
--   Vector Tiles: <http://docs.geoserver.org/latest/en/user/extensions/vectortiles/tutorial.html>
--   3D Tiles: <https://github.com/AnalyticalGraphicsInc/3d-tile>
 
-## References:
+## Acknowledgement
 
-1.  <https://www.e-education.psu.edu/geog585/node/706>
-2.  <https://docs.microsoft.com/en-us/bingmaps/articles/bing-maps-tile-system>
+The data has bee processed by Steven Bao, I appreciate Steven's assistance in creating the lab data.
