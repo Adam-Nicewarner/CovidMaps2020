@@ -17,20 +17,21 @@ map.on('load', () => { //simplifying the function statement: arrow with brackets
 
 // when loading a geojson, there are two steps
 // add a source of the data and then add the layer out of the source
-map.addSource('earthquakes', {
+map.addSource('usCovidCounts', {
     type: 'geojson',
-    data: 'assets/us-covid-2020-counts.json'
+    data: 'assets/us-covid-2020-counts.geojson'
 });
 
+
 map.addLayer({
-        'id': 'earthquakes-point',
+        'id': 'covid-point',
         'type': 'circle',
-        'source': 'earthquakes',
-        'minzoom': 5,
+        'source': 'usCovidCounts',
+        'minzoom': 2,
         'paint': {
             // increase the radii of the circle as the zoom level and dbh value increases
             'circle-radius': {
-                'property': 'mag',
+                'property': 'cases',
                 'stops': [
                     [{
                         zoom: 5,
@@ -47,7 +48,7 @@ map.addLayer({
                 ]
             },
             'circle-color': {
-                'property': 'mag',
+                'property': 'cases',
                 'stops': [
                     [grades[0], colors[0]],
                     [grades[1], colors[1]],
@@ -64,10 +65,10 @@ map.addLayer({
 
 
 // click on tree to view magnitude in a popup
-map.on('click', 'earthquakes-point', (event) => {
+map.on('click', 'covid-point', (event) => {
     new mapboxgl.Popup()
         .setLngLat(event.features[0].geometry.coordinates)
-        .setHTML(`<strong>Magnitude:</strong> ${event.features[0].properties.mag}`)
+        .setHTML(`<strong>Magnitude:</strong> ${event.features[0].properties.cases}`)
         .addTo(map);
 });
 

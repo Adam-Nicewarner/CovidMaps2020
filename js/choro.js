@@ -21,8 +21,8 @@ map.addSource('earthquakes', {
     type: 'geojson',
     data: 'assets/earthquakes.geojson'
 });
-
 map.addLayer({
+
         'id': 'earthquakes-point',
         'type': 'circle',
         'source': 'earthquakes',
