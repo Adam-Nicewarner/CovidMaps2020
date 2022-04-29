@@ -50,14 +50,14 @@
                 });
 
                 const layers = [
-                    '0-9',
-                    '10-19',
-                    '20-49',
-                    '50-99',
-                    '100-199',
-                    '200-499',
-                    '500-999',
-                    '1000 and more'
+                    '4-30.5',
+                    '30.5-47.25',
+                    '47.25-61.4',
+                    '61.4-76.0',
+                    '76.0-93.14',
+                    '93.14-118.21',
+                    '118.21-166.53',
+                    '166.53+'
                 ];
                 const colors = [
                     '#FFEDA070',
@@ -72,7 +72,7 @@
 
                 // create legend
                 const legend = document.getElementById('legend');
-                legend.innerHTML = "<b>Population Density<br>(people/sq.mi.)</b><br><br>";
+                legend.innerHTML = "<b>Cases per 1,000 people<br>(people/sq.mi.)</b><br><br>";
 
 
                 layers.forEach((layer, i) => {
@@ -89,18 +89,18 @@
                     legend.appendChild(item);
                 });
             });
-            console.log("thisbit");
+            
             map.on('mousemove', ({point}) => {
-              console.log("wow");
-              /*
-              const state = map.queryRenderedFeatures(point.point, {
+              const state = map.queryRenderedFeatures(point, {
                   layers: ['covidData-layer']
               });
               document.getElementById('text-escription').innerHTML = state.length ?
-                  `<h3>${state[0].properties.county}</h3><p><strong><em>${state[0].properties.rates}</strong> people per square mile</em></p>` :
-                  `<p>Hover over a state!</p>`;
-                  */
+                  `<h3>${state[0].properties.county} County: </h3><p><strong><em>${state[0].properties.rates}</strong> cases per 1,000 people</em></p>` :
+                  `<p>Hover over a County!</p>`;
           });
+          
+
+
         }
 
         geojsonFetch();

@@ -1,4 +1,21 @@
-# Lab 3: Web Map Application
+write up a project description in the readme.md file. This file will introduce the project name, a brief introduction, links to the map, screenshots, the primary functions(especially the function which was not covered in the lectures), libraries in use, data sources, credit, acknowledgment, and other necessary information. (6 points)
+
+
+
+# Lab 3: Web Map Application-By Adam Nicewarner
+
+In this project, we use 2 different datasets to show the COVID counts and rates among counties in the USA in 2020.
+
+Rate map: https://adam-nicewarner.github.io/CovidMaps2020/map1.html
+
+PUT SCREENSHOTS HERE
+![](img/ratesmap.JPG)
+
+Count map: https://adam-nicewarner.github.io/CovidMaps2020/map2.html
+
+![](img/casesmap.JPG)
+
+They each have an interactive element. In the rate map, if you hover over a county, you can see the counties name, as well as it's Covid rate per thousand residents. In the count map, if you click a dot, which represents a county, you can see the number of cases that county has, as well as their name. I have used the mapbox library, as well as the NYTimes Files in order to create this map. This was a task performed with the help of the Geography department of UW, specifically professor Bo Zhao.
 
 **Instructor:** Bo Zhao, 206.685.3846 or zhaobo@uw.edu; **Points Available** = 50
 

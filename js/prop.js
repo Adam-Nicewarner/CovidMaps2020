@@ -70,7 +70,7 @@ map.addLayer({
 map.on('click', 'covid-point', (event) => {
     new mapboxgl.Popup()
         .setLngLat(event.features[0].geometry.coordinates)
-        .setHTML(`<strong>Cases:</strong> ${event.features[0].properties.cases.toLocaleString()}`)
+        .setHTML(event.features[0].properties.county + ' County:<br>' +`<strong>Cases:</strong> ${event.features[0].properties.cases.toLocaleString()}`)
         .addTo(map);
 });
 
@@ -96,7 +96,7 @@ labels.push(
 
 }
 const source =
-'<p style="text-align: right; font-size:10pt">Source: <a href="https://earthquake.usgs.gov/earthquakes/">USGS</a></p>';
+'<p style="text-align: right; font-size:10pt">Source: <a href="https://github.com/nytimes/covid-19-data/blob/43d32dde2f87bd4dafbb7d23f5d9e878124018b8/live/us-counties.csv">NYTimes</a></p>';
 
 legend.innerHTML = labels.join('') + source;
 
