@@ -2,18 +2,20 @@ mapboxgl.accessToken =
 'pk.eyJ1IjoiamFrb2J6aGFvIiwiYSI6ImNpcms2YWsyMzAwMmtmbG5icTFxZ3ZkdncifQ.P9MBej1xacybKcDN_jehvw';
 let map = new mapboxgl.Map({
 container: 'map', // container ID
-style: 'mapbox://styles/mapbox/dark-v10',
+style: 'mapbox://styles/mapbox/streets-v9',
 zoom: 4, // starting zoom
-center: [-97, 38] // starting center
+center: [-97, 38], // starting center
+projection: 'albers'
 });
 
-const grades = [4, 5, 6],
+const grades = [1,36158, 317268, 756412],
 colors = ['rgb(208,209,230)', 'rgb(103,169,207)', 'rgb(1,108,89)'],
 radii = [5, 15, 20];
 
 //load data to the map as new layers.
 //map.on('load', function loadingData() {
 map.on('load', () => { //simplifying the function statement: arrow with brackets to define a function
+
 
 // when loading a geojson, there are two steps
 // add a source of the data and then add the layer out of the source
@@ -68,7 +70,7 @@ map.addLayer({
 map.on('click', 'covid-point', (event) => {
     new mapboxgl.Popup()
         .setLngLat(event.features[0].geometry.coordinates)
-        .setHTML(`<strong>Magnitude:</strong> ${event.features[0].properties.cases}`)
+        .setHTML(`<strong>Cases:</strong> ${event.features[0].properties.cases.toLocaleString()}`)
         .addTo(map);
 });
 
@@ -79,10 +81,10 @@ map.on('click', 'covid-point', (event) => {
 const legend = document.getElementById('legend');
 
 //set up legend grades and labels
-var labels = ['<strong>Magnitude</strong>'], vbreak;
+var labels = ['<strong>Cases per county</strong>'], vbreak;
 //iterate through grades and create a scaled circle and label for each
-for (var i = 0; i < grades.length; i++) {
-vbreak = grades[i];
+for (var i = 0; i < grades.length-1; i++) {
+vbreak = grades[i].toLocaleString() + " - " + grades[i+1].toLocaleString();
 // you need to manually adjust the radius of each dot on the legend 
 // in order to make sure the legend can be properly referred to the dot on the map.
 dot_radii = 2 * radii[i];
@@ -97,3 +99,4 @@ const source =
 '<p style="text-align: right; font-size:10pt">Source: <a href="https://earthquake.usgs.gov/earthquakes/">USGS</a></p>';
 
 legend.innerHTML = labels.join('') + source;
+

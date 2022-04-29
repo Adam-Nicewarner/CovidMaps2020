@@ -35,14 +35,14 @@ body {
 /* basic style for a dot/circle */
 .dot {
     display: inline-block;
-    margin-top: 5px;
+    margin-top: 15px;
     border-radius: 50%;
     opacity: 0.6;
 }
 
 /* the label for the dot */
 .dot-label {
-    position: absolute;
+    position:static;
     top: 0;
     right: 0;
     font-style: italic;
